@@ -156,7 +156,7 @@ public final class SceneRenderer {
             drawSymmetry(session);
         }
         for (SpritePlacement placement : session.placements) {
-            if (!visible(placement, overlays)) {
+            if (!visible(placement, session)) {
                 continue;
             }
             if (placement.missing || Math.abs(placement.width) < 1e-4f || Math.abs(placement.height) < 1e-4f) {
@@ -204,13 +204,15 @@ public final class SceneRenderer {
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     }
 
-    private boolean visible(SpritePlacement placement, Overlays overlays) {
+    private boolean visible(SpritePlacement placement, EditorSession session) {
+        Overlays overlays = session.overlays;
+        boolean isolate = session.shadow.isolate;
         return switch (placement.role) {
-            case "base" -> overlays.base;
-            case "shadow" -> overlays.base;
-            case "outline" -> overlays.outlines;
-            case "heat" -> overlays.heat;
-            default -> true;
+            case "base" -> overlays.base && !isolate;
+            case "shadow" -> session.shadow.visible;
+            case "outline" -> overlays.outlines && !isolate;
+            case "heat" -> overlays.heat && !isolate;
+            default -> !isolate;
         };
     }
 
@@ -269,12 +271,30 @@ public final class SceneRenderer {
         float sign = selected.side == 1 ? -1f : 1f;
         float[] axis = RegionMath.localAxis(session.params.rotation, sign);
         float len = 2.2f;
-        line(selected.centerX, selected.centerY,
-                selected.centerX + axis[0] * len, selected.centerY + axis[1] * len,
-                2.2f / session.zoom, 0.95f, 0.25f, 0.22f, 1f);
-        line(selected.centerX, selected.centerY,
-                selected.centerX + axis[2] * len, selected.centerY + axis[3] * len,
-                2.2f / session.zoom, 0.25f, 0.85f, 0.28f, 1f);
+        if ("rotate".equals(session.tool)) {
+            int steps = 28;
+            float radius = len;
+            float px = selected.centerX + radius;
+            float py = selected.centerY;
+            for (int i = 1; i <= steps; i++) {
+                double a = Math.PI * 2 * i / steps;
+                float nx = selected.centerX + (float) Math.cos(a) * radius;
+                float ny = selected.centerY + (float) Math.sin(a) * radius;
+                line(px, py, nx, ny, 1.6f / session.zoom, 0.95f, 0.78f, 0.35f, 0.95f);
+                px = nx;
+                py = ny;
+            }
+            line(selected.centerX, selected.centerY,
+                    selected.centerX + axis[2] * radius, selected.centerY + axis[3] * radius,
+                    1.6f / session.zoom, 0.95f, 0.78f, 0.35f, 1f);
+        } else {
+            line(selected.centerX, selected.centerY,
+                    selected.centerX + axis[0] * len, selected.centerY + axis[1] * len,
+                    2.2f / session.zoom, 0.95f, 0.25f, 0.22f, 1f);
+            line(selected.centerX, selected.centerY,
+                    selected.centerX + axis[2] * len, selected.centerY + axis[3] * len,
+                    2.2f / session.zoom, 0.25f, 0.85f, 0.28f, 1f);
+        }
     }
 
     private void drawGrid(EditorSession session, float viewW, float viewH) {

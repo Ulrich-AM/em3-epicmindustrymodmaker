@@ -70,7 +70,7 @@ public final class Em3Main {
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
         glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
-        long window = glfwCreateWindow(width, height, "EM3 — Epic Mindustry Mod Maker", NULL, NULL);
+        long window = glfwCreateWindow(width, height, "epic mindustry mod maker (em3)", NULL, NULL);
         if (window == NULL) {
             glfwTerminate();
             throw new IllegalStateException("Could not create the editor window");
@@ -113,7 +113,12 @@ public final class Em3Main {
             float dt = Math.min(0.1f, (now - previous) / 1_000_000_000f);
             previous = now;
             session.editorTicks += dt * 60f;
-            session.playback.advance(dt, session.params);
+            if (session.test.active) {
+                session.test.step(dt, session.params);
+                session.playback.driveChannels = false;
+            } else {
+                session.playback.advance(dt, session.params);
+            }
             session.refresh();
 
             int[] fbW = new int[1];

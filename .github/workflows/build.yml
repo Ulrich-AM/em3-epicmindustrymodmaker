@@ -70,9 +70,24 @@ jobs:
             Write-Host "runtime/bin/java.exe was not packaged; EM3.exe launches the bundled jvm.dll"
           }
           New-Item -ItemType Directory -Force -Path build/bundle/EM3/docs | Out-Null
+          New-Item -ItemType Directory -Force -Path build/bundle/EM3/sprites/salvo | Out-Null
           Copy-Item -Path "$app/*" -Destination build/bundle/EM3 -Recurse -Force
-          Copy-Item README.md, CHANGELOG.md, KNOWN_LIMITATIONS.md, LICENSE build/bundle/EM3
-          Copy-Item docs/importing-assets.md build/bundle/EM3/docs
+          $sprites = @{
+            "salvo-preview" = "core/assets-raw/sprites/blocks/turrets/salvo/salvo-preview.png"
+            "salvo-barrel" = "core/assets-raw/sprites/blocks/turrets/salvo/salvo-barrel.png"
+            "salvo-barrel-heat" = "core/assets-raw/sprites/blocks/turrets/salvo/salvo-barrel-heat.png"
+            "salvo-side-l" = "core/assets-raw/sprites/blocks/turrets/salvo/salvo-side-l.png"
+            "salvo-side-r" = "core/assets-raw/sprites/blocks/turrets/salvo/salvo-side-r.png"
+            "block-2" = "core/assets-raw/sprites/blocks/turrets/bases/block-2.png"
+          }
+          foreach ($name in $sprites.Keys) {
+            $url = "https://raw.githubusercontent.com/Anuken/Mindustry/v160.7/$($sprites[$name])"
+            $dest = "build/bundle/EM3/sprites/salvo/$name.png"
+            Invoke-WebRequest -Uri $url -OutFile $dest
+            if ((Get-Item $dest).Length -lt 32) { throw "Sprite download looks empty: $name" }
+          }
+          Copy-Item README.md, CHANGELOG.md, KNOWN_LIMITATIONS.md, LICENSE, THIRD_PARTY_SPRITES.md build/bundle/EM3
+          Copy-Item docs/importing-assets.md, docs/animation-and-test.md build/bundle/EM3/docs
           Compress-Archive -Path build/bundle/EM3 -DestinationPath "build/EM3-v$version-windows.zip" -Force
           if (-not (Test-Path "build/EM3-v$version-windows.zip")) { throw "Zip was not written" }
       - uses: actions/upload-artifact@v4
@@ -107,14 +122,16 @@ jobs:
       - name: Publish
         uses: softprops/action-gh-release@v2
         with:
-          name: "EM3 ${{ github.ref_name }}: Foundation and Salvo Preview"
+          name: "${{ github.ref_name }}: animation editor and interactive testing"
           body_path: CHANGELOG.md
           files: |
             dist/EM3-v*-windows.zip
             README.md
             CHANGELOG.md
             KNOWN_LIMITATIONS.md
+            THIRD_PARTY_SPRITES.md
             docs/importing-assets.md
+            docs/animation-and-test.md
           fail_on_unmatched_files: true
           draft: false
           prerelease: false

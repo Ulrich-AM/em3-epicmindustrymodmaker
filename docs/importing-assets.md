@@ -1,5 +1,9 @@
 # Importing Salvo sprites
 
+EM3 looks for official files before asking for a manual import. A packaged build keeps them in `sprites/salvo` next to `EM3.exe`. A checkout uses `~/.em3/cache/mindustry-v160.7` after `tools > download official salvo sprites`. Those files are Mindustry's, under GPL-3.0. See `THIRD_PARTY_SPRITES.md`.
+
+If the cache and the app folder are both empty, use the download button or point import at a Mindustry v160.7 tree. Import does not replace sprite paths already stored in a project.
+
 EM3 does not include Mindustry's artwork. Until the PNGs are linked, the scene shows a missing-assets message and the parts have no pixels.
 
 The files for Mindustry **v160.7** are:

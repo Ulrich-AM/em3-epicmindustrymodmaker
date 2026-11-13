@@ -2,6 +2,10 @@ package em3.project;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import em3.animation.AnimTrack;
+import em3.animation.ChannelAnimation;
+import em3.animation.Keyframe;
+import em3.animation.TrackMath;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -43,6 +47,8 @@ public final class RegionPartModel {
     public JsonNode growProgress;
     public final List<PartMoveModel> moves = new ArrayList<>();
     public final List<RegionPartModel> children = new ArrayList<>();
+    /** Editor tracks. Export turns supported linear keys into PartMoves. */
+    public final List<ChannelAnimation> animations = new ArrayList<>();
     public ObjectNode extras;
 
     public RegionPartModel copy() {
@@ -83,7 +89,50 @@ public final class RegionPartModel {
         for (RegionPartModel child : children) {
             c.children.add(child.copy());
         }
+        for (ChannelAnimation channel : animations) {
+            c.animations.add(channel.copy());
+        }
         c.extras = extras == null ? null : extras.deepCopy();
         return c;
+    }
+
+    public ChannelAnimation channel(String name) {
+        for (ChannelAnimation channel : animations) {
+            if (name.equals(channel.channel)) {
+                return channel;
+            }
+        }
+        return null;
+    }
+
+    public ChannelAnimation channelOrCreate(String name) {
+        ChannelAnimation found = channel(name);
+        if (found != null) {
+            return found;
+        }
+        ChannelAnimation created = new ChannelAnimation(name);
+        animations.add(created);
+        return created;
+    }
+
+    public boolean hasTrack(String channelName, String property) {
+        ChannelAnimation channel = channel(channelName);
+        return channel != null && channel.track(property) != null && !channel.track(property).keys.isEmpty();
+    }
+
+    public float sampleTrack(String channelName, String property, float time) {
+        ChannelAnimation channel = channel(channelName);
+        if (channel == null) {
+            return Float.NaN;
+        }
+        AnimTrack track = channel.track(property);
+        if (track == null || track.keys.isEmpty()) {
+            return Float.NaN;
+        }
+        return TrackMath.sample(track, time);
+    }
+
+    public Keyframe upsertKey(String channelName, String property, float time, float value) {
+        return TrackMath.upsert(channelOrCreate(channelName).trackOrCreate(property), time, value);
     }
 }

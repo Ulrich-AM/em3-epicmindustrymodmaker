@@ -4,6 +4,8 @@ import em3.animation.PartParams;
 import em3.animation.Playback;
 import em3.animation.RegionMath;
 import em3.animation.SpritePlacement;
+import em3.animation.TestPreview;
+import em3.assets.SalvoAssets;
 import em3.assets.SpriteLibrary;
 import em3.export.ContentExporter;
 import em3.export.ExportReport;
@@ -41,12 +43,25 @@ public final class EditorSession {
     public float cameraX;
     public float cameraY;
     public float zoom = 18f;
+    public final History history = new History();
+    public final ShadowDebug shadow = new ShadowDebug();
+    public final TestPreview test = new TestPreview();
+    public boolean autoKey;
+    public String activeChannel = "warmup";
+    public String tool = "move";
+    public boolean snapEnabled;
+    public float positionSnap = 1f;
+    public float rotationSnap = 15f;
 
     public EditorSession() {
         params.rotation = 90f;
-        refresh();
-        log.info("EM3 v0.1.0 — Salvo preset. Sprites are not bundled.");
-        log.info("Target Mindustry " + MindustryV160.VERSION_LABEL + ".");
+        linkOfficialIfEmpty();
+        reloadSprites();
+        RegionPartModel selected = selectedPart();
+        if (selected != null && selected.progress != null && selected.progress.isTextual()) {
+            activeChannel = selected.progress.asText();
+        }
+        log.info("epic mindustry mod maker (em3) v0.2.0. Target Mindustry " + MindustryV160.VERSION_LABEL + ".");
     }
 
     public void refresh() {
@@ -54,7 +69,7 @@ public final class EditorSession {
         report.warnings.clear();
         report.notes.clear();
         placements.clear();
-        placements.addAll(RegionMath.compose(project.turret, params, editorTicks, this::spriteSize, report));
+        placements.addAll(RegionMath.compose(project.turret, params, editorTicks, this::spriteSize, report, shadow));
         PartParams rest = params.copy();
         rest.warmup = 0f;
         rest.reload = 0f;
@@ -142,9 +157,27 @@ public final class EditorSession {
         selection = "part/barrel";
         playback.reset(params);
         params.rotation = 90f;
+        linkOfficialIfEmpty();
         sprites.reload(project);
         refresh();
         log.info("New Salvo project. Save it to create the project folder.");
+    }
+
+    /** Fills missing official sprite paths from a bundle or the local cache. Saved paths are kept. */
+    public void linkOfficialIfEmpty() {
+        if (project.sprites.isEmpty()) {
+            SalvoAssets.ensure(project);
+            if (!project.sprites.isEmpty()) {
+                log.info("Linked official Salvo sprites from the local cache or app folder.");
+            }
+        }
+    }
+
+    public void edit(Runnable change) {
+        var before = History.capture(project.turret);
+        change.run();
+        history.pushNow(project.turret, before);
+        touch();
     }
 
     public void save(Path directory) throws IOException {
@@ -178,10 +211,9 @@ public final class EditorSession {
 
     public void downloadOfficial() {
         try {
-            Path cache = SpriteLibrary.userCache();
-            List<String> written = SpriteLibrary.downloadOfficial(cache);
-            importFolder(cache);
-            log.info("Downloaded " + written.size() + " official v160.7 sprites into " + cache);
+            List<String> written = SalvoAssets.downloadToCache();
+            importFolder(SalvoAssets.cacheDir());
+            log.info("Downloaded " + written.size() + " official v160.7 sprites into " + SalvoAssets.cacheDir());
         } catch (IOException e) {
             log.error("Download failed: " + e.getMessage());
         }

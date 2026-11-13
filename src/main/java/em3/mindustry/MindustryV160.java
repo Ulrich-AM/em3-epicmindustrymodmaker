@@ -33,7 +33,7 @@ public final class MindustryV160 {
     public static final float DEFAULT_OUTLINE_LAYER_OFFSET = -0.001f;
     public static final float DEFAULT_HEAT_LAYER_OFFSET = 1f;
 
-    /** Raw files used to assemble Salvo. These are not shipped inside EM3. */
+    /** Raw files used to assemble Salvo. Git does not store the PNGs. The Windows package may. */
     public static final String[] SALVO_REGIONS = {
             "salvo-preview",
             "salvo-barrel",
