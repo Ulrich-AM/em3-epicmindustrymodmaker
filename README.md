@@ -1,6 +1,6 @@
 # EM3 — Epic Mindustry Mod Maker
 
-EM3 v0.1.0 is a desktop editor for inspecting and editing a Mindustry turret, starting with Salvo from Mindustry **v160.7**.
+EM3 v0.1.1 is a desktop editor for inspecting and editing a Mindustry turret, starting with Salvo from Mindustry **v160.7**.
 
 The window is a dark docking workspace: hierarchy, scene, inspector, animation, JSON output, console, and assets. Panels can be dragged, split, and saved with Dear ImGui's layout file. Docking stays inside the primary window. imgui-java's extra platform windows are not enabled, because they submitted no geometry to the main viewport in the Linux smoke test.
 

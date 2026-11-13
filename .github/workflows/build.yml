@@ -36,22 +36,37 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          jpackage --type app-image --name EM3 --app-version 0.1.0 \
+          version="$(sed -n "s/^version = ['\"]\\(.*\\)['\"]/\\1/p" build.gradle)"
+          test -n "$version"
+          jpackage --type app-image --name EM3 --app-version "$version" \
             --dest build/jpackage \
             --input build/install/em3/lib \
-            --main-jar em3-0.1.0.jar \
+            --main-jar "em3-${version}.jar" \
             --main-class em3.app.Em3Main
+          app="build/jpackage/EM3"
+          test -f "$app/EM3.exe"
+          test -d "$app/runtime"
+          test -f "$app/runtime/bin/java.exe"
+          # MZ header: the launcher is a Windows executable, and java.exe is the bundled runtime.
+          magic() {
+            powershell -NoProfile -Command "[System.BitConverter]::ToString([System.IO.File]::ReadAllBytes('$1')[0..1])"
+          }
+          test "$(magic "$app/EM3.exe")" = "4D-5A"
+          test "$(magic "$app/runtime/bin/java.exe")" = "4D-5A"
+          echo "EM3.exe and runtime/bin/java.exe are present for $version"
           mkdir -p build/bundle/EM3
-          cp -a build/jpackage/EM3/. build/bundle/EM3/
+          cp -a "$app"/. build/bundle/EM3/
           cp README.md CHANGELOG.md KNOWN_LIMITATIONS.md LICENSE build/bundle/EM3/
           mkdir -p build/bundle/EM3/docs
           cp docs/importing-assets.md build/bundle/EM3/docs/
           cd build/bundle
-          powershell -NoProfile -Command "Compress-Archive -Path EM3 -DestinationPath ../EM3-v0.1.0-windows.zip -Force"
+          powershell -NoProfile -Command "Compress-Archive -Path EM3 -DestinationPath ../EM3-v${version}-windows.zip -Force"
+          test -f "../EM3-v${version}-windows.zip"
       - uses: actions/upload-artifact@v4
         with:
-          name: EM3-v0.1.0-windows
-          path: build/EM3-v0.1.0-windows.zip
+          name: EM3-windows
+          path: build/EM3-v*-windows.zip
+          if-no-files-found: error
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -63,7 +78,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: EM3-v0.1.0-windows
+          name: EM3-windows
           path: dist
       - name: Refuse to replace an existing release
         env:
@@ -75,13 +90,14 @@ jobs:
             echo "Release $tag already exists. Refusing to overwrite it."
             exit 1
           fi
+          test -n "$(find dist -name 'EM3-v*-windows.zip' -print -quit)"
       - name: Publish
         uses: softprops/action-gh-release@v2
         with:
-          name: ${{ github.ref_name == 'v0.1.0' && 'EM3 v0.1.0: Foundation and Salvo Preview' || github.ref_name }}
+          name: "EM3 ${{ github.ref_name }}: Foundation and Salvo Preview"
           body_path: CHANGELOG.md
           files: |
-            dist/EM3-v0.1.0-windows.zip
+            dist/EM3-v*-windows.zip
             README.md
             CHANGELOG.md
             KNOWN_LIMITATIONS.md
