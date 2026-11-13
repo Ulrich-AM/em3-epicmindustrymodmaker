@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.1.3 — Windows package
+
+v0.1.2 reached `jpackage` and produced `EM3.exe`. The job then stopped because this image has no `runtime/bin/java.exe`. The packager now treats `runtime/bin/server/jvm.dll` as the bundled runtime when the `java` launcher was not copied into the image.
+
 ## v0.1.2 — Windows package
 
 v0.1.0 was not moved. Its workflow file was invalid YAML, so Actions never started a job. v0.1.1 fixed that file and the jobs started. The Windows package step then exited 1 without printing a jpackage error, because Git Bash was launching `jpackage.exe`. This tag runs the packager from PowerShell and checks that `EM3.exe` and `runtime/bin/java.exe` are Windows executables before the zip is uploaded.

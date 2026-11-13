@@ -52,13 +52,22 @@ jobs:
             --main-class em3.app.Em3Main
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $app = "build/jpackage/EM3"
-          foreach ($path in @("$app/EM3.exe", "$app/runtime/bin/java.exe")) {
-            if (-not (Test-Path $path)) { throw "Missing $path" }
-            $bytes = [System.IO.File]::ReadAllBytes((Resolve-Path $path))
-            if ($bytes.Length -lt 2 -or $bytes[0] -ne 0x4D -or $bytes[1] -ne 0x5A) {
-              throw "$path is not a Windows executable"
-            }
-            Write-Host "Verified $path ($($bytes.Length) bytes)"
+          Get-ChildItem "$app/runtime" -Recurse -Depth 2 | ForEach-Object { Write-Host $_.FullName }
+          $exe = Join-Path $app "EM3.exe"
+          if (-not (Test-Path $exe)) { throw "Missing EM3.exe" }
+          $bytes = [System.IO.File]::ReadAllBytes((Resolve-Path $exe))
+          if ($bytes[0] -ne 0x4D -or $bytes[1] -ne 0x5A) { throw "EM3.exe is not a Windows executable" }
+          Write-Host "Verified EM3.exe ($($bytes.Length) bytes)"
+          $jvm = Get-ChildItem "$app/runtime" -Recurse -Filter "jvm.dll" | Select-Object -First 1
+          if ($null -eq $jvm) { throw "The jpackage runtime does not contain jvm.dll" }
+          Write-Host "Verified runtime $($jvm.FullName) ($($jvm.Length) bytes)"
+          $java = Join-Path $app "runtime/bin/java.exe"
+          if (Test-Path $java) {
+            $javaBytes = [System.IO.File]::ReadAllBytes((Resolve-Path $java))
+            if ($javaBytes[0] -ne 0x4D -or $javaBytes[1] -ne 0x5A) { throw "java.exe is not a Windows executable" }
+            Write-Host "Verified $java ($($javaBytes.Length) bytes)"
+          } else {
+            Write-Host "runtime/bin/java.exe was not packaged; EM3.exe launches the bundled jvm.dll"
           }
           New-Item -ItemType Directory -Force -Path build/bundle/EM3/docs | Out-Null
           Copy-Item -Path "$app/*" -Destination build/bundle/EM3 -Recurse -Force
