@@ -33,35 +33,39 @@ jobs:
         run: ./gradlew installDist --no-daemon
         shell: bash
       - name: Package with jpackage
-        shell: bash
+        shell: pwsh
         run: |
-          set -euo pipefail
-          version="$(sed -n "s/^version = ['\"]\\(.*\\)['\"]/\\1/p" build.gradle)"
-          test -n "$version"
-          jpackage --type app-image --name EM3 --app-version "$version" \
-            --dest build/jpackage \
-            --input build/install/em3/lib \
-            --main-jar "em3-${version}.jar" \
-            --main-class em3.app.Em3Main
-          app="build/jpackage/EM3"
-          test -f "$app/EM3.exe"
-          test -d "$app/runtime"
-          test -f "$app/runtime/bin/java.exe"
-          # MZ header: the launcher is a Windows executable, and java.exe is the bundled runtime.
-          magic() {
-            powershell -NoProfile -Command "[System.BitConverter]::ToString([System.IO.File]::ReadAllBytes('$1')[0..1])"
+          $ErrorActionPreference = "Stop"
+          $match = Select-String -Path build.gradle -Pattern "^version = '([^']+)'"
+          $version = $match.Matches[0].Groups[1].Value
+          Write-Host "Packaging $version"
+          Get-ChildItem "build/install/em3/lib" | ForEach-Object { Write-Host $_.Name }
+          $mainJar = "em3-$version.jar"
+          if (-not (Test-Path "build/install/em3/lib/$mainJar")) {
+            throw "Missing $mainJar"
           }
-          test "$(magic "$app/EM3.exe")" = "4D-5A"
-          test "$(magic "$app/runtime/bin/java.exe")" = "4D-5A"
-          echo "EM3.exe and runtime/bin/java.exe are present for $version"
-          mkdir -p build/bundle/EM3
-          cp -a "$app"/. build/bundle/EM3/
-          cp README.md CHANGELOG.md KNOWN_LIMITATIONS.md LICENSE build/bundle/EM3/
-          mkdir -p build/bundle/EM3/docs
-          cp docs/importing-assets.md build/bundle/EM3/docs/
-          cd build/bundle
-          powershell -NoProfile -Command "Compress-Archive -Path EM3 -DestinationPath ../EM3-v${version}-windows.zip -Force"
-          test -f "../EM3-v${version}-windows.zip"
+          & jpackage --type app-image --name EM3 --app-version $version `
+            --verbose `
+            --dest build/jpackage `
+            --input "build/install/em3/lib" `
+            --main-jar $mainJar `
+            --main-class em3.app.Em3Main
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $app = "build/jpackage/EM3"
+          foreach ($path in @("$app/EM3.exe", "$app/runtime/bin/java.exe")) {
+            if (-not (Test-Path $path)) { throw "Missing $path" }
+            $bytes = [System.IO.File]::ReadAllBytes((Resolve-Path $path))
+            if ($bytes.Length -lt 2 -or $bytes[0] -ne 0x4D -or $bytes[1] -ne 0x5A) {
+              throw "$path is not a Windows executable"
+            }
+            Write-Host "Verified $path ($($bytes.Length) bytes)"
+          }
+          New-Item -ItemType Directory -Force -Path build/bundle/EM3/docs | Out-Null
+          Copy-Item -Path "$app/*" -Destination build/bundle/EM3 -Recurse -Force
+          Copy-Item README.md, CHANGELOG.md, KNOWN_LIMITATIONS.md, LICENSE build/bundle/EM3
+          Copy-Item docs/importing-assets.md build/bundle/EM3/docs
+          Compress-Archive -Path build/bundle/EM3 -DestinationPath "build/EM3-v$version-windows.zip" -Force
+          if (-not (Test-Path "build/EM3-v$version-windows.zip")) { throw "Zip was not written" }
       - uses: actions/upload-artifact@v4
         with:
           name: EM3-windows

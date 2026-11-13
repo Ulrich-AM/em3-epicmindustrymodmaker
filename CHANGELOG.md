@@ -1,6 +1,14 @@
 # Changelog
 
-## v0.1.1 — Windows package
+## v0.1.2 — Windows package
+
+v0.1.0 was not moved. Its workflow file was invalid YAML, so Actions never started a job. v0.1.1 fixed that file and the jobs started. The Windows package step then exited 1 without printing a jpackage error, because Git Bash was launching `jpackage.exe`. This tag runs the packager from PowerShell and checks that `EM3.exe` and `runtime/bin/java.exe` are Windows executables before the zip is uploaded.
+
+## v0.1.1 — Workflow file
+
+- Quote the release title so GitHub accepts the workflow.
+
+## v0.1.0 — Foundation and Salvo Preview
 
 The v0.1.0 tag is unchanged. Its Actions runs never started: the workflow title was invalid YAML because of an unquoted colon, so GitHub rejected the file before any job.
 
