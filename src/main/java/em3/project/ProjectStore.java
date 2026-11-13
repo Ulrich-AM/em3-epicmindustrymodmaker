@@ -4,6 +4,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import em3.animation.AnimTrack;
+import em3.animation.ChannelAnimation;
+import em3.animation.Keyframe;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -196,6 +199,12 @@ public final class ProjectStore {
                 children.add(partToJson(child));
             }
         }
+        if (!part.animations.isEmpty()) {
+            var animations = node.putArray("animations");
+            for (ChannelAnimation channel : part.animations) {
+                animations.add(animationToJson(channel));
+            }
+        }
         node.put("id", part.id);
         node.put("label", part.label);
         node.put("editorVisible", part.editorVisible);
@@ -251,6 +260,11 @@ public final class ProjectStore {
                 part.children.add(partFromJson(child));
             }
         }
+        if (node.has("animations") && node.get("animations").isArray()) {
+            for (JsonNode channel : node.get("animations")) {
+                part.animations.add(animationFromJson(channel));
+            }
+        }
         if (node instanceof ObjectNode object) {
             ObjectNode extras = object.deepCopy();
             extras.remove(KNOWN_PART_KEYS);
@@ -267,7 +281,7 @@ public final class ProjectStore {
             "x", "y", "originX", "originY", "rotation", "xScl", "yScl",
             "moveX", "moveY", "moveRot", "growX", "growY",
             "layer", "layerOffset", "outlineLayerOffset", "heatLayerOffset",
-            "progress", "heatProgress", "growProgress", "moves", "children"
+            "progress", "heatProgress", "growProgress", "moves", "children", "animations"
     );
 
     private static ObjectNode moveToJson(PartMoveModel move) {
@@ -299,6 +313,44 @@ public final class ProjectStore {
             }
         }
         return move;
+    }
+
+    private static ObjectNode animationToJson(ChannelAnimation channel) {
+        ObjectNode node = MAPPER.createObjectNode();
+        node.put("channel", channel.channel);
+        var tracks = node.putArray("tracks");
+        for (AnimTrack track : channel.tracks) {
+            ObjectNode trackNode = tracks.addObject();
+            trackNode.put("property", track.property);
+            var keys = trackNode.putArray("keys");
+            for (Keyframe key : track.keys) {
+                ObjectNode keyNode = keys.addObject();
+                keyNode.put("t", num(key.time));
+                keyNode.put("v", num(key.value));
+                keyNode.put("interpolation", key.interpolation == null ? "linear" : key.interpolation);
+            }
+        }
+        return node;
+    }
+
+    private static ChannelAnimation animationFromJson(JsonNode node) {
+        ChannelAnimation channel = new ChannelAnimation(node.path("channel").asText("warmup"));
+        JsonNode tracks = node.get("tracks");
+        if (tracks != null && tracks.isArray()) {
+            for (JsonNode trackNode : tracks) {
+                AnimTrack track = new AnimTrack(trackNode.path("property").asText("x"));
+                JsonNode keys = trackNode.get("keys");
+                if (keys != null && keys.isArray()) {
+                    for (JsonNode keyNode : keys) {
+                        Keyframe key = new Keyframe((float) keyNode.path("t").asDouble(), (float) keyNode.path("v").asDouble());
+                        key.interpolation = keyNode.path("interpolation").asText("linear");
+                        track.keys.add(key);
+                    }
+                }
+                channel.tracks.add(track);
+            }
+        }
+        return channel;
     }
 
     private static float f(JsonNode node, String field) {

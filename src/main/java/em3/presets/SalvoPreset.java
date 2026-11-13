@@ -55,6 +55,11 @@ public final class SalvoPreset {
         recoil.y = -0.5f;
         recoil.rot = -8f;
         side.moves.add(recoil);
+        span(side, "warmup", "x", 0.6f);
+        span(side, "warmup", "rotation", -15f);
+        span(side, "recoil", "x", 0.5f);
+        span(side, "recoil", "y", -0.5f);
+        span(side, "recoil", "rotation", -8f);
 
         RegionPartModel barrel = new RegionPartModel();
         barrel.id = "barrel";
@@ -66,9 +71,16 @@ public final class SalvoPreset {
         barrel.moveY = -2.5f;
         barrel.heatProgress = TextNode.valueOf("heat");
         barrel.growProgress = TextNode.valueOf("warmup");
+        span(barrel, "recoil", "y", -2.5f);
 
         turret.parts.add(side);
         turret.parts.add(barrel);
         return turret;
+    }
+
+    /** A linear 0 to 1 key pair matching a Mindustry move field. The original field stays. */
+    private static void span(RegionPartModel part, String channel, String property, float value) {
+        part.upsertKey(channel, property, 0f, 0f);
+        part.upsertKey(channel, property, 1f, value);
     }
 }

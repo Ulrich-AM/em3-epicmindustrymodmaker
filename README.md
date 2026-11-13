@@ -1,6 +1,8 @@
-# EM3 — Epic Mindustry Mod Maker
+# epic mindustry mod maker (em3)
 
-EM3 v0.1.3 is a desktop editor for inspecting and editing a Mindustry turret, starting with Salvo from Mindustry **v160.7**.
+EM3 v0.2.0 is a desktop editor for building and previewing a Mindustry turret, starting with Salvo from Mindustry **v160.7**.
+
+The window title is `epic mindustry mod maker (em3)`. Panel names and buttons are lowercase. The font is Arial when the system has it. Technical names, sprite filenames, and project JSON stay as written.
 
 The window is a dark docking workspace: hierarchy, scene, inspector, animation, JSON output, console, and assets. Panels can be dragged, split, and saved with Dear ImGui's layout file. Docking stays inside the primary window. imgui-java's extra platform windows are not enabled, because they submitted no geometry to the main viewport in the Linux smoke test.
 
@@ -10,13 +12,13 @@ EM3 is one Gradle project. Packages split the work:
 
 | Package | Role |
 | --- | --- |
-| `em3.app` | Startup, session, overlays, log |
-| `em3.ui` | Docking workspace and panels |
+| `em3.app` | Startup, session, overlays, shadow debug, undo |
+| `em3.ui` | Docking workspace, timeline, gizmos, test mode |
 | `em3.viewport` | OpenGL scene framebuffer |
 | `em3.mindustry` | Pinned v160.7 constants and official asset URLs |
-| `em3.animation` | `PartParams`, progress evaluation, sprite placement |
+| `em3.animation` | Channels, keyframes, progress, test preview, sprite placement |
 | `em3.project` | EM3 project files, separate from generated content JSON |
-| `em3.assets` | PNG loading and outline generation |
+| `em3.assets` | PNG loading, outline generation, Salvo sprite lookup |
 | `em3.export` | Mindustry content JSON |
 | `em3.presets` | Salvo |
 
@@ -31,9 +33,15 @@ Documented differences:
 - Sprite corners use `Math.cos` / `Math.sin`. Arc's `Mathf.cosDeg` is a lookup table, so a corner can sit a fraction of a pixel away.
 - `PartProgress` `sin` and `absin` use `Math.sin`. Arc uses the same kind of lookup table.
 - Outlines use Arc's radius test (`rx*rx + ry*ry <= radius*radius`, default radius 4, color `404049`). Mindustry's bleed pass runs only when linear filtering is enabled. EM3 uses nearest filtering, so bleed is not applied.
-- The animation curve is an editor preview. It is not `TurretBuild.update`.
+- The shot curve and test mode are editor previews. Neither is `TurretBuild.update`.
 
-Salvo has no raw `salvo.png`. The in-world colored pieces are `block-2`, `salvo-barrel`, the mirrored `salvo-side-r` / `salvo-side-l` plates, and `salvo-barrel-heat`. `salvo-preview` is the icon and the shadow (`Pal.shadow`, alpha 0.22), offset by elevation. It is not drawn again in color on top of the parts.
+Salvo has no raw `salvo.png`. The in-world colored pieces are `block-2`, `salvo-barrel`, the mirrored `salvo-side-r` / `salvo-side-l` plates, and `salvo-barrel-heat`. `salvo-preview` is the icon and the ground shadow (`Pal.shadow`, alpha 0.22), offset by elevation on world x and world y. Outlines are a separate radius-4 pass. The shadow is not drawn again in color on top of the parts.
+
+## Animation and test mode
+
+See [docs/animation-and-test.md](docs/animation-and-test.md).
+
+The animation panel has one set of tracks per part and per channel (warmup, recoil, charge, reload). `g` moves the selection and `r` rotates it. `test` or `f5` aims the turret with the mouse and fires it at a preview rate. `ctrl+z` undoes an edit. Supported keys export as Mindustry `PartMove` values. Step keys are preview-only and produce an export error.
 
 ## Requirements
 
@@ -54,7 +62,9 @@ Pinned versions: Gradle 8.10.2, LWJGL 3.3.3, imgui-java 1.86.12 (docking branch 
 
 ## Sprites
 
-See [docs/importing-assets.md](docs/importing-assets.md).
+See [docs/importing-assets.md](docs/importing-assets.md) and [THIRD_PARTY_SPRITES.md](THIRD_PARTY_SPRITES.md).
+
+A new project with an empty sprite map links the six official files from `sprites/salvo` beside the application, or from `~/.em3/cache/mindustry-v160.7`. A saved project keeps the paths it already has. The Windows zip downloads the pinned v160.7 PNGs into the app folder. They are GPL-3.0 and are not committed.
 
 ## Project files
 

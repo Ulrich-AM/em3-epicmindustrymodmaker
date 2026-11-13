@@ -2,6 +2,9 @@ package em3.export;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import em3.animation.AnimTrack;
+import em3.animation.ChannelAnimation;
+import em3.animation.TrackMath;
 import em3.project.Em3Project;
 import em3.project.PartMoveModel;
 import em3.project.ProjectStore;
@@ -89,9 +92,10 @@ public final class ContentExporter {
         if (part.yScl != 1f) {
             put(node, "yScl", part.yScl);
         }
-        put(node, "moveX", part.moveX);
-        put(node, "moveY", part.moveY);
-        put(node, "moveRot", part.moveRot);
+        String progressName = part.progress != null && part.progress.isTextual() ? part.progress.asText() : null;
+        put(node, "moveX", exportedClassic(part, progressName, "x", part.moveX));
+        put(node, "moveY", exportedClassic(part, progressName, "y", part.moveY));
+        put(node, "moveRot", exportedClassic(part, progressName, "rotation", part.moveRot));
         if (part.growX != 0f) {
             put(node, "growX", part.growX);
         }
@@ -123,6 +127,9 @@ public final class ContentExporter {
         }
         var moves = node.putArray("moves");
         for (PartMoveModel move : part.moves) {
+            if (channelReplaced(part, move.progress)) {
+                continue;
+            }
             ObjectNode moveNode = move.extras == null
                     ? ProjectStore.mapper().createObjectNode()
                     : move.extras.deepCopy();
@@ -142,6 +149,7 @@ public final class ContentExporter {
             warnUnknown(moveNode, List.of("progress", "x", "y", "gx", "gy", "rot"), part.label + " move", report);
             moves.add(moveNode);
         }
+        exportTracks(part, moves, report);
         if (!part.children.isEmpty()) {
             var children = node.putArray("children");
             for (RegionPartModel child : part.children) {
@@ -155,6 +163,104 @@ public final class ContentExporter {
             report.note(part.label + " is hidden in the editor. That does not change the exported outline or region.");
         }
         return node;
+    }
+
+    private static float exportedClassic(RegionPartModel part, String channel, String property, float fallback) {
+        TrackMath.Segment simple = simpleSpan(part, channel, property);
+        if (simple == null) {
+            return part.hasTrack(channel, property) ? 0f : fallback;
+        }
+        return simple.delta;
+    }
+
+    /** One linear key pair from 0 to 1. That is the same as moveX * progress. */
+    private static TrackMath.Segment simpleSpan(RegionPartModel part, String channel, String property) {
+        if (channel == null || !part.hasTrack(channel, property)) {
+            return null;
+        }
+        AnimTrack track = part.channel(channel).track(property);
+        var segments = TrackMath.segments(track);
+        if (segments.size() != 1) {
+            return null;
+        }
+        TrackMath.Segment segment = segments.get(0);
+        if (segment.step || segment.start > 0.001f || segment.end < 0.999f) {
+            return null;
+        }
+        return segment;
+    }
+
+    private static boolean channelReplaced(RegionPartModel part, JsonNode progress) {
+        if (progress == null || !progress.isTextual()) {
+            return false;
+        }
+        ChannelAnimation channel = part.channel(progress.asText());
+        return channel != null && !channel.tracks.isEmpty();
+    }
+
+    private static void exportTracks(RegionPartModel part, com.fasterxml.jackson.databind.node.ArrayNode moves, ExportReport report) {
+        java.util.Map<String, ObjectNode> simpleMoves = new java.util.LinkedHashMap<>();
+        for (ChannelAnimation channel : part.animations) {
+            for (AnimTrack track : channel.tracks) {
+                if (track.keys.size() < 2) {
+                    if (track.keys.size() == 1 && track.keys.get(0).value != 0f) {
+                        report.warn(part.label + " " + channel.channel + " " + track.property
+                                + " has one keyframe. A constant offset is not a PartMove, so it stays in the EM3 project only.");
+                    }
+                    continue;
+                }
+                String progressName = part.progress != null && part.progress.isTextual() ? part.progress.asText() : null;
+                if (simpleSpan(part, channel.channel, track.property) != null) {
+                    if (!channel.channel.equals(progressName)) {
+                        ObjectNode moveNode = simpleMoves.computeIfAbsent(channel.channel, name -> {
+                            ObjectNode created = ProjectStore.mapper().createObjectNode();
+                            created.put("progress", name);
+                            return created;
+                        });
+                        writeDelta(moveNode, track.property, simpleSpan(part, channel.channel, track.property).delta, part, report);
+                    }
+                    continue;
+                }
+                for (TrackMath.Segment segment : TrackMath.segments(track)) {
+                    if (segment.step) {
+                        report.error(part.label + " " + channel.channel + " " + track.property
+                                + " uses step interpolation. Mindustry compress is linear, so that segment was not exported.");
+                        continue;
+                    }
+                    if (segment.delta == 0f || segment.end <= segment.start) {
+                        continue;
+                    }
+                    ObjectNode moveNode = ProjectStore.mapper().createObjectNode();
+                    ObjectNode progress = moveNode.putObject("progress");
+                    progress.put("type", channel.channel);
+                    progress.put("op", "compress");
+                    progress.put("start", segment.start);
+                    progress.put("end", segment.end);
+                    if (!writeDelta(moveNode, track.property, segment.delta, part, report)) {
+                        continue;
+                    }
+                    moves.add(moveNode);
+                }
+            }
+        }
+        for (ObjectNode moveNode : simpleMoves.values()) {
+            moves.add(moveNode);
+        }
+    }
+
+    private static boolean writeDelta(ObjectNode moveNode, String property, float delta, RegionPartModel part, ExportReport report) {
+        switch (property) {
+            case "x" -> put(moveNode, "x", delta);
+            case "y" -> put(moveNode, "y", delta);
+            case "rotation" -> put(moveNode, "rot", delta);
+            case "xScl" -> put(moveNode, "gx", delta);
+            case "yScl" -> put(moveNode, "gy", delta);
+            default -> {
+                report.error(part.label + " track property '" + property + "' has no Mindustry field");
+                return false;
+            }
+        }
+        return true;
     }
 
     private static void validateProgress(JsonNode node, String where, ExportReport report) {
